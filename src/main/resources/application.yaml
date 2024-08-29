@@ -1,0 +1,7 @@
+quarkus:
+  log: INFO
+  mongodb:
+    connection-string: mongodb://localhost:27017
+
+app:
+  authentication-password: "Y2FybCBodW5n"

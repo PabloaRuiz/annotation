@@ -1,0 +1,22 @@
+POST localhost:8080/api/v1/annotations
+authentication-password: carl hung
+
+{
+    "title": "Rotina de leitura",
+    "date": "2024-08-25T14:45:00Z",
+    "description": "ler os livros Historia do Brasil e Solid"
+}
+
+###
+GET localhost:8080/api/v1/annotations/title/Rotina de leitura
+
+###
+GET localhost:8080/api/v1/annotations/completed/OPEN
+
+###
+PATCH localhost:8080/api/v1/annotations/modify/Rotina de leitura
+
+{
+    "description": "ler os livros Historia do Brasil e Solid"
+}
+
