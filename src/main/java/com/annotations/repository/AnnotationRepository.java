@@ -5,6 +5,7 @@ import com.annotations.exceptions.AnnotationNotFoundException;
 import com.annotations.exceptions.ExceptionManager;
 import com.annotations.exceptions.InvalidArgumentException;
 import com.annotations.infra.MongoConnection;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.model.Updates;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -15,7 +16,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static com.annotations.domain.Annotation.*;
-import static com.annotations.domain.Status.FINISHED;
 import static com.annotations.domain.Status.OPEN;
 import static com.annotations.exceptions.ErrorMessages.*;
 import static com.mongodb.client.model.Filters.and;
@@ -32,35 +32,28 @@ public class AnnotationRepository {
     private final ObjectMapper mapper;
 
     public void add(Annotation annotation) {
-        if (annotation != null) {
-            mongoConnection.getCollection()
-                    .insertOne(annotationToDocument(annotation));
+        if (annotation == null) {
+            log.warn("Unable to persist the JSON: {} ", annotation);
+            throw new InvalidArgumentException(ILLEGAL_ARGUMENT.getMessage());
         }
-        log.warn("Unable to persist the JSON: {} ", annotation);
-        throw new InvalidArgumentException(ILLEGAL_ARGUMENT.getMessage());
+        mongoConnection.getCollection()
+                .insertOne(annotationToDocument(annotation));
     }
 
-    public Annotation getTitleAnnotation(String title) {
-        if (title != null) {
-            var filter = and(
-                    eq(TITLE, title),
-                    eq(STATUS, OPEN)
-            );
-
-            var document = ofNullable(mongoConnection.getCollection()
-                    .find(filter)
-                    .first())
-                    .orElseThrow(() -> new AnnotationNotFoundException(NOT_FOUND_ANNOTATION.getMessage()));
-
-            return documentToAnnotation(document);
-        }
-        log.warn("No annotation found with title: {}", title);
-        throw new InvalidArgumentException(ILLEGAL_ARGUMENT.getMessage());
+    public Annotation getIdAnnotation(String id) {
+        return ofNullable(mongoConnection.getCollection()
+                        .find(and(
+                                eq(ID_ANNOTATION, id),
+                                eq(STATUS, OPEN)
+                        )).first()
+                )
+                .map(Annotation::documentToAnnotation)
+                .orElseThrow(() -> new AnnotationNotFoundException(NOT_FOUND_ANNOTATION.getMessage()));
     }
 
     public List<Annotation> getAnnotations(String status) {
         if (status != null) {
-            var filter = eq(status, FINISHED);
+            var filter = eq(STATUS, status);
 
             var annotations = mongoConnection.getCollection()
                     .find(filter)
@@ -76,30 +69,29 @@ public class AnnotationRepository {
         throw new InvalidArgumentException(ILLEGAL_ARGUMENT.getMessage());
     }
 
-
-    public Annotation setDescriptionModify(String tittle, String jsonBody) {
-        if (tittle != null || jsonBody != null) {
-            var filter = eq(TITLE, tittle);
+    public Annotation setDescriptionModify(String id, String jsonBody) {
+        if (id != null || jsonBody != null) {
+            var filter = eq(ID_ANNOTATION, id);
             var update = Updates.set(DESCRIPTION, extractDescription(jsonBody));
             mongoConnection.getCollection()
                     .updateOne(filter, update);
-
-            return getTitleAnnotation(tittle);
+            return getIdAnnotation(id);
         }
+
         throw new InvalidArgumentException(ILLEGAL_ARGUMENT.getMessage());
     }
 
     private String extractDescription(String jsonBody) {
         var newDescription = "";
         try {
-            var jsonNode = mapper.readTree(jsonBody);
+            JsonNode jsonNode = mapper.readTree(jsonBody);
             newDescription = jsonNode.get(DESCRIPTION).asText();
         } catch (Exception e) {
-            log.warn("It was not possible to deserialize the JSON: {}. The following error occurred: {}",
-                    jsonBody,
-                    e.getMessage());
+            log.warn("It was not possible to deserialize the JSON: {}. " +
+                    "The following error occurred: {}", jsonBody, e.getMessage());
             throw new ExceptionManager(ERROR_JSON.getMessage());
         }
         return newDescription;
     }
+
 }
